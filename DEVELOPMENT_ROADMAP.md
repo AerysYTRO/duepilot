@@ -21,7 +21,7 @@ CRUD UIs + migrations for clients, invoices, payments, invoice numbering trigger
 **Accept:** property-based tests for money math & state machine; payment recompute triggers tested incl. delete-of-payment rollback; cross-org probes fail closed.
 
 ## Phase 4 — Reminder Engine v1 (est. 7–10 d)
-Schedules CRUD (validation core+SQL), materialization triggers, `reminder_instances` lifecycle, Worker cron tick, claim RPC (SKIP LOCKED + lease), Resend send, deliveries log, stop-on-paid, retries/backoff, manual send-now, reminder history UI. TOTP 2FA for admins lands here too.
+Schedules CRUD (validation core+SQL), materialization triggers, `reminder_instances` lifecycle, Worker cron tick, claim RPC (SKIP LOCKED + lease), Resend send, deliveries log, stop-on-paid, retries/backoff, manual send-now, reminder history UI. *(Separate concern, scheduled here for capacity reasons:* **TOTP 2FA — Time-based One-Time Password multi-factor authentication for owners/admins — is an Authentication/Security feature per SECURITY.md §2, not part of the reminder engine.***)**
 **Accept:** idempotency chaos test (double-claim, crash-replay ⇒ exactly one delivery); DST boundary schedule tests; paid-mid-cycle cancels pending instances; history reflects every attempt.
 
 ## Phase 5 — Templates, i18n & Email Polish (est. 5 d)

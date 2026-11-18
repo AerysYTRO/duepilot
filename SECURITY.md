@@ -15,7 +15,7 @@ Principle: **the client is hostile by default.** Authorization is enforced where
 | Reminder spam / duplicate emails | Idempotency keys + claim lease + stop-on-paid re-check at send time |
 | Template injection / XSS via stored HTML | Whitelisted placeholders, server-side sanitization, strict CSP |
 | CSV import abuse (formula injection, bombs) | Size/row caps, type coercion, cell escaping, dry-run mode |
-| Account takeover | Supabase Auth (bcrypt/argon2), optional TOTP 2FA (Phase 4), session rotation, device list |
+| Account takeover | Supabase Auth (bcrypt/argon2), optional TOTP (Time-based One-Time Password) MFA (Phase 4 — auth/security, see §2; not a reminder-engine feature), session rotation, device list |
 | Payment fraud / webhook forgery | Stripe signature verification + event id ledger |
 | Data exfiltration via export | Exports audited; Storage URLs signed, short-lived |
 
@@ -26,7 +26,7 @@ Principle: **the client is hostile by default.** Authorization is enforced where
 - **Electron:** tokens kept in `safeStorage`-encrypted file, never localStorage; renderer obtains them only through typed IPC from main process which proxies nothing but storage (network still goes direct with anon key + token).
 - **PWA/Android:** HTTPS-only origin, tokens in memory + encrypted IndexedDB fallback; no service-worker caching of authenticated responses.
 - Session revocation: sign-out everywhere via Supabase admin API (Worker route, owner/admin self-service).
-- 2FA (TOTP) for owners/admins required on paid plans — Phase 4; until then documented gap in roadmap risk register.
+- **MFA / TOTP clarification:** TOTP = *Time-based One-Time Password*, the second factor in our optional/plan-gated MFA flow. It belongs to Authentication & Security (this section), and is scheduled for delivery during the Phase 4 time window purely for capacity planning — it is **not** part of the reminder engine. Owners/admins on paid plans will be required to enroll; enforcement lands with the billing phase.
 
 ## 3. Authorization (server-enforced)
 
@@ -91,7 +91,7 @@ CI runs `gitleaks` + a bundling guard that fails the build if any string matchin
 
 | ID | Gap | Mitigation/Plan |
 |---|---|---|
-| SG-1 | No MFA yet | Phase 4 (TOTP), mandatory for admins on paid plans |
+| SG-1 | No MFA yet | Phase 4 window (TOTP MFA — auth/security, §2), mandatory for admins on paid plans |
 | SG-2 | Email deliverability unproven | Domain warm-up + monitoring gates Phase 5 exit |
 | SG-3 | DPA/terms legal docs absent | Before first commercial sale (Phase 8) |
 | SG-4 | Pen test not performed | Third-party test scheduled pre-GA |

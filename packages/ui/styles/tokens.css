@@ -1,0 +1,100 @@
+/* DuePilot design tokens — single source of truth for both themes.
+ * Raw palette (brand spec) + semantic shadcn-style variables consumed by Tailwind.
+ * Dark is the default (`:root`); `.light` class on <html> remaps surfaces. */
+
+:root {
+  /* Brand palette (raw) */
+  --dp-midnight-navy: #0b1424;
+  --dp-surface-navy: #111f33;
+  --dp-electric-teal: #20c7b1;
+  --dp-soft-mint: #a3f0d5;
+  --dp-cloud-white: #f4f7fb;
+  --dp-muted-slate: #8796aa;
+  --dp-success: #35c98a;
+  --dp-alert-coral: #f07878;
+
+  /* Typography */
+  --dp-font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Radii */
+  --dp-radius-sm: 0.375rem;
+  --dp-radius-md: 0.5rem;
+  --dp-radius-lg: 0.75rem;
+  --dp-radius-xl: 1rem;
+
+  /* Shadows (dark-tuned; light theme overrides) */
+  --dp-shadow-sm: 0 1px 2px rgb(3 10 24 / 0.4);
+  --dp-shadow-md: 0 4px 12px rgb(3 10 24 / 0.45);
+  --dp-shadow-lg: 0 12px 32px rgb(3 10 24 / 0.55);
+
+  /* Spacing scale (Tailwind default extended separately; exposed for inline use) */
+  --dp-space-1: 0.25rem;
+  --dp-space-2: 0.5rem;
+  --dp-space-3: 0.75rem;
+  --dp-space-4: 1rem;
+  --dp-space-6: 1.5rem;
+  --dp-space-8: 2rem;
+
+  color-scheme: dark;
+
+  /* Semantic tokens — DARK (default). HSL triplets for Tailwind alpha support. */
+  --dp-background: 218 54% 9%;            /* Midnight Navy */
+  --dp-foreground: 213 45% 97%;           /* Cloud White */
+  --dp-card: 214 49% 14%;                 /* Surface Navy */
+  --dp-card-foreground: 213 45% 97%;
+  --dp-popover: 214 49% 12%;
+  --dp-popover-foreground: 213 45% 97%;
+  --dp-primary: 173 73% 45%;              /* Electric Teal */
+  --dp-primary-foreground: 218 54% 9%;    /* text on teal = navy */
+  --dp-secondary: 214 40% 20%;
+  --dp-secondary-foreground: 160 71% 79%; /* Soft Mint */
+  --dp-muted: 214 35% 17%;
+  --dp-muted-foreground: 213 17% 60%;     /* Muted Slate */
+  --dp-accent: 160 71% 79%;               /* Soft Mint */
+  --dp-accent-foreground: 218 54% 9%;
+  --dp-destructive: 0 80% 71%;            /* Alert Coral */
+  --dp-destructive-foreground: 218 54% 9%;
+  --dp-success-bg: 154 59% 50%;           /* Success green */
+  --dp-success-foreground: 218 54% 9%;
+  --dp-border: 214 35% 22%;
+  --dp-input: 214 35% 22%;
+  --dp-ring: 173 73% 45%;
+}
+
+.light {
+  color-scheme: light;
+
+  --dp-background: 213 45% 97%;           /* Cloud White */
+  --dp-foreground: 218 54% 9%;            /* Midnight Navy text */
+  --dp-card: 0 0% 100%;
+  --dp-card-foreground: 218 54% 9%;
+  --dp-popover: 0 0% 100%;
+  --dp-popover-foreground: 218 54% 9%;
+  --dp-primary: 173 73% 38%;              /* slightly deepened teal for AA contrast on white */
+  --dp-primary-foreground: 0 0% 100%;
+  --dp-secondary: 213 30% 92%;
+  --dp-secondary-foreground: 218 54% 15%;
+  --dp-muted: 213 30% 93%;
+  --dp-muted-foreground: 215 17% 42%;
+  --dp-accent: 160 60% 88%;
+  --dp-accent-foreground: 218 54% 9%;
+  --dp-destructive: 0 68% 55%;            /* coral darkened for light bg */
+  --dp-destructive-foreground: 0 0% 100%;
+  --dp-success-bg: 154 59% 38%;
+  --dp-success-foreground: 0 0% 100%;
+  --dp-border: 214 25% 85%;
+  --dp-input: 214 25% 85%;
+  --dp-ring: 173 73% 38%;
+
+  --dp-shadow-sm: 0 1px 2px rgb(11 20 36 / 0.08);
+  --dp-shadow-md: 0 4px 12px rgb(11 20 36 / 0.1);
+  --dp-shadow-lg: 0 12px 32px rgb(11 20 36 / 0.14);
+}
+
+body {
+  font-family: var(--dp-font-sans);
+  background-color: hsl(var(--dp-background));
+  color: hsl(var(--dp-foreground));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}

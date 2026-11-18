@@ -1,0 +1,36 @@
+{
+  "name": "duepilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DuePilot — invoice payment reminder platform (monorepo root)",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.11 <23",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "clean": "pnpm -r exec rm -rf dist node_modules/.vite && rm -rf node_modules",
+    "dev:desktop": "pnpm --filter @duepilot/desktop dev",
+    "dev:web": "pnpm --filter @duepilot/web dev",
+    "dev:worker": "pnpm --filter @duepilot/worker dev",
+    "format": "prettier --write \"**/*.{ts,tsx,js,cjs,json,md,css,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,cjs,json,md,css,yaml,yml}\"",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck",
+    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.10",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^2.1.8"
+  }
+}

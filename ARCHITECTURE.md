@@ -49,9 +49,15 @@ The SPA talks **directly to Supabase Postgres through RLS** for CRUD (this is th
 - No Electron code in Android path. Capacitor readiness = the web app already meets PWA + touch + safe-area requirements; a `apps/mobile-capacitor` wrapper will be added in a later phase without touching shared code.
 
 ### 3.3 `apps/worker` — Cloudflare Worker (Reminder Engine driver)
+
+**Worker authentication & organization authorization (Phase 1 clarification):**
+- **AuthN:** every HTTP request carries the end-user's Supabase access token (`Authorization: Bearer …`). The Worker verifies it with `jsonwebtoken` against the project's JWKS (`https://<project>.supabase.co/auth/v1/.well-known/jwks.json`, cached; HS256 fallback via `SUPABASE_JWT_SECRET` for legacy projects). It rejects expired tokens and anonymous/unauthenticated keys. Cron invocations carry no user JWT — they are triggered only by the platform `scheduled()` binding (no public route can invoke the tick), and any future manual job trigger requires an `x-cron-secret` header matched against a Worker secret.
+- **AuthZ:** after AuthN the Worker resolves the caller's membership itself: `GET org_members where user_id = jwt.sub and org_id = :org` using the **anon key + user JWT so RLS applies** — the Worker never assumes authorization from request bodies or JWT custom claims alone. Only after membership (and role, for admin-gated routes) is proven does it perform privileged writes with `service_role`, always scoped to the verified `org_id`. `send-now` additionally re-checks invoice ownership + state in one transactional RPC. Service-role usage is confined to: cross-tenant job claiming, delivery-log inserts, and email rendering reads — each audited.
+- **Threat note:** the Worker treats both its secrets and the verified `sub` as trusted inputs but everything else as hostile; malformed org ids / non-membership ⇒ uniform `404/403` per API_SPECIFICATION §0.
+
 - `scheduled()` cron every 15 minutes:
   1. Claim due `reminder_instances` (`status='pending' AND scheduled_for <= now()`) using an atomic RPC that does `UPDATE ... FOR UPDATE SKIP LOCKED ... RETURNING` — guarantees one worker tick owns each instance (idempotency layer 1).
-  2. For each claimed instance: re-check invoice status in DB; if paid/void → mark `skipped` (stop-on-paid rule enforced at send time, not just schedule time).
+  2. For each claimed instance: re-check invoice state in DB; if `payment_status='paid'` or `lifecycle_status='void'` → mark `skipped` (stop-on-paid rule enforced at send time, not just schedule time; partial payments do not stop remaining-balance reminders).
   3. Render email from template (org language + branding), send via Resend, write `reminder_deliveries` row (attempt count, provider id, error). On failure: `pending` again with `attempts+1` until max attempts → `failed` (retry policy §DATABASE_SCHEMA §reminder_instances).
 - Also exposes `POST /send-now` (user-JWT verified against Supabase Auth) for manual reminder sends.
 - Secrets (Resend key, service_role key, Stripe keys) live only in `wrangler secret put`. The Worker validates the caller's JWT before performing service-role writes for user-triggered actions.
@@ -60,11 +66,11 @@ The SPA talks **directly to Supabase Postgres through RLS** for CRUD (this is th
 - `migrations/`: every schema change is a versioned SQL migration; RLS policies ship in the same migration as their table. Never edit applied migrations.
 - `functions/stripe-webhook`: verifies `Stripe-Signature`, updates `organizations.plan/subscription status`, records events idempotently (unique Stripe event id).
 - `functions/checkout-sessions`: creates Stripe Checkout / billing-portal sessions for the org after checking the caller's org role via RLS-scoped query.
-- Triggers (SQL): invoice status recomputation from payments; overdue flagging is derived, not stored twice (see DATABASE_SCHEMA §generated columns).
+- Triggers (SQL): invoice payment-status recomputation from payments; overdue flagging is derived (`is_overdue`), never a payment state and never stored twice (see DATABASE_SCHEMA §3).
 
 ### 3.5 `packages/core` — pure domain logic (no runtime deps)
 - Money arithmetic in **integer minor units** (avoid float bugs), currency metadata.
-- Invoice status state machine (allowed transitions, guards).
+- Invoice model: three orthogonal dimensions — document lifecycle (`draft→sent→void`), derived payment status (`unpaid/partially_paid/paid`) and a derived overdue flag (see DATABASE_SCHEMA §3). Allowed transitions + guards are pure functions here.
 - Reminder schedule math: expand a `reminder_schedule` into concrete UTC instants given a due date + IANA org timezone (DST-safe via temporal-math helpers; tested against DST boundaries).
 - Idempotency key generation/validation, CSV schema validation (zod schemas shared client/server), date/number locale formatting contracts.
 - This package is the primary Vitest target.
@@ -94,7 +100,7 @@ Light theme remaps surfaces to Cloud White family while keeping accent semantics
 
 **Automatic reminder:** cron claims instance → checks invoice unpaid → renders RO/EN email → Resend accept → delivery logged → SPA shows it in Reminder History via realtime subscription on `reminder_deliveries`.
 
-**Payment received:** user records payment → trigger sets `paid_amount`, status becomes `partially_paid`/`paid` → pending future instances for that invoice are cancelled by the same trigger (stop-on-paid, layer 2).
+**Payment received:** user records payment → trigger sums `paid_minor`, derives `payment_status = partially_paid | paid` → on full payment only, pending future instances for that invoice are cancelled by the same trigger (stop-on-paid, layer 2). Partial payments keep the reminder cadence alive against the remaining balance.
 
 ## 6. Cross-Cutting Concerns
 

@@ -53,9 +53,10 @@ Realtime channels: `postgres_changes` on `invoices`, `payments`, `reminder_deliv
 | `invoice_send` | invoice_id | invoice | draft→sent; materializes reminder instances; validates sender email configured |
 | `invoice_void` | invoice_id, reason | invoice | →void; cancels pending reminders; admin+ |
 | `invoice_reopen` | invoice_id, reason | invoice | paid/void→sent; admin+; audited |
-| `record_payment` | invoice_id, amount_minor, currency, received_on, method, reference | payment | recompute trigger updates status & cancels/exposes reminders atomically |
+| `record_payment` | invoice_id, amount_minor, currency, received_on, method, reference | payment | recompute trigger updates `payment_status` (partial payments ⇒ `partially_paid`) & cancels reminders only on full payment/void |
+| `invoice_set_lifecycle` | invoice_id, to ('sent'\|'void'), reason? | invoice | lifecycle transitions only; `payment_status` and `is_overdue` are never client-writable (DATABASE_SCHEMA §3) |
 | `reschedule_invoice_reminders` | invoice_id, schedule_id | int (new instance count) | cancel pending + re-materialize |
-| `mark_overdue_invoices` | org_id (nullable=all caller's orgs) | int | derived-status refresh invoked by cron & on read paths |
+| `mark_overdue_invoices` | org_id (nullable=all caller's orgs) | int | refreshes derived `is_overdue` flag (orthogonal to payment status; paid invoices excluded) — invoked by cron & on read paths |
 | `claim_due_reminders` | batch int | setof reminder_instances | **service_role only** — SKIP LOCKED claim incl. lease reclaim |
 | `finish_reminder` | instance_id, outcome ('delivered','skipped','failed'), provider_message_id?, error? | void | **service_role only** — applies backoff/final states |
 | `org_analytics` | from date, to date | kpi jsonb | dashboard payload (wraps v_org_kpis) |

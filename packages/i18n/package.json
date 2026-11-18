@@ -1,0 +1,17 @@
+{
+  "name": "@duepilot/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DuePilot localization: EN/RO catalogs, locale types and interpolation (framework-agnostic).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --root ../.. packages/i18n",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

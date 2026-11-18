@@ -12,7 +12,7 @@ auth.users ─┐
             ├─ org_members ─ organizations ─┬─ clients ─ invoices ─ payments
 profiles ───┘        │                      │        │
                      ├─ reminder_schedules ─┤        ├─ reminder_instances ─ reminder_deliveries
-                     ├─ email_templates ────┘        └─ (status via trigger)
+                     ├─ email_templates ────┘        └─ (lifecycle/payment status + overdue flag via triggers)
                      ├─ subscriptions (Stripe)
                      └─ csv_jobs / audit_log
 ```
@@ -75,23 +75,32 @@ Unique: `(org_id, lower(name))` partial where not archived — prevents accident
 | tax_rate numeric(6,3) | | percent, default 0 |
 | tax_minor | bigint | recomputed by trigger |
 | total_minor | bigint | = subtotal + tax (CHECK keeps consistent) |
-| paid_minor | bigint | trigger-maintained sum of payments, never > total (guard) |
+| paid_minor | bigint | trigger-maintained sum of payments, never > total (guard). **Partial payments are explicitly represented**: `0 < paid_minor < total_minor` ⇔ payment status `partially_paid`; each partial payment is its own immutable `payments` row |
 | currency | char(3) | frozen at creation |
-| status | text | `draft`,`sent`,`partially_paid`,`paid`,`overdue`,`void` — see state machine |
+| lifecycle_status | text | `draft` \| `sent` \| `void` — **document lifecycle only** (see state model below) |
+| payment_status | text | `unpaid` \| `partially_paid` \| `paid` — **derived from payments**, trigger-maintained, never set directly by clients |
+| is_overdue | boolean | **derived lateness flag**, orthogonal to payment_status (a `partially_paid` invoice can be overdue). Refreshed by `mark_overdue_invoices`, evaluated against org-timezone "today" |
 | notes / line_items jsonb | | line items stored as JSONB array `{description, qty, unit_minor}` |
 | sent_at, paid_at, voided_at | timestamptz? | |
 | created_by | uuid | audit |
 
-**State machine (enforced in `core` + DB trigger `trg_invoice_status_guard`):**
+**Invoice state model (three orthogonal dimensions — clarification approved in Phase 1 review):**
+
+A single mutually-exclusive `status` column conflated document lifecycle, payment progress and lateness. The model is therefore split:
+
+1. **Lifecycle** (`invoices.lifecycle_status`, client-transitioned, DB trigger guard):
 ```
-draft → sent → partially_paid → paid
-draft → void ; sent → void
-sent/partially_paid (+ due_date < today@org-tz) → overdue   (derived; refreshed by cron-safe SQL fn, not wall-clock triggers)
-overdue → partially_paid / paid / void
-partially_paid → paid
-No transition out of paid/void except admin "reopen" (audited).
+draft → sent → void (terminal; admin+, audited)
+draft → void
 ```
-`paid_minor >= total_minor ⇒ paid` automatically on payment insert/delete (trigger recomputes both `paid_minor` and status).
+2. **Payment status** (`invoices.payment_status`, *derived only* from the `payments` sum by trigger — clients can never set it):
+```
+unpaid (paid_minor = 0) → partially_paid (0 < paid_minor < total_minor) → paid (paid_minor >= total_minor, terminal except audited reopen)
+```
+Partial payments are first-class: every recorded payment is an immutable `payments` row; `paid_minor`/`balance_minor` recompute on insert **and delete** (rollback correctness); `partially_paid` invoices keep receiving reminders for the remaining balance with `{{amount_due}} = total − paid`.
+3. **Overdue flag** (`invoices.is_overdue`, derived, *not* a payment state): `lifecycle_status='sent' AND payment_status <> 'paid' AND due_date < today(org timezone)`. Evaluated by `mark_overdue_invoices` (cron + read paths). A partially-paid invoice can be overdue; a paid invoice is never overdue. UI badges compose all three (e.g. “Partially paid · Overdue”).
+
+Guards (DB trigger `trg_invoice_guard` mirror of `core` state machine): no lifecycle change once `void`; `paid ⇒` lifecycle stays `sent` unless admin reopen (audited); reminder materialization/cancellation keys off `lifecycle_status` + `payment_status` (stop-on-paid = `payment_status='paid'` or void).
 
 ### `payments`
 `id`, `org_id`, `invoice_id`, `amount_minor bigint check > 0`, `currency char(3)` (must equal invoice currency — trigger), `received_on date`, `method text check ('bank_transfer','card','cash','paypal','other')`, `reference text?`, `recorded_by uuid`, `created_at`. Deleting a payment re-runs the invoice recompute trigger (partial-payment correctness).
@@ -132,7 +141,7 @@ Indexes: partial `(scheduled_for) where status='pending'`; `(invoice_id) where s
 
 **Lifecycle:**
 1. Materialized when invoice becomes `sent` (`trg_materialize_reminders` calls `core`-mirrored SQL; DST-correct day-of-month anchoring done in SQL via `due_date + tz` cast arithmetic).
-2. Re-materialized (old pending cancelled) when due_date/schedule changes; cancelled entirely when invoice → `paid`/`void` (stop-on-paid layer 2).
+2. Re-materialized (old pending cancelled) when due_date/schedule changes; cancelled entirely when invoice `payment_status → paid` or `lifecycle_status → void` (stop-on-paid layer 2). Partial payments do **not** cancel reminders — remaining-balance steps continue.
 3. Worker claims via RPC `claim_due_reminders(batch int)` — `FOR UPDATE SKIP LOCKED`, sets `sending`, returns rows. Unique idempotency_key + status guards make replays no-ops (layer 1). Manual sends reuse the same table with `step_index = -1`.
 
 ### `reminder_deliveries` — append-only log
